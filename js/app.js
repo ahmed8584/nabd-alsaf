@@ -474,6 +474,7 @@ function showSettings() {
   content.innerHTML = `
     <div class="card">
       <div class="card-header"><h2 class="card-title">⚙️ الإعدادات</h2></div>
+      
       <div class="form-group">
         <label>الفصل الحالي</label>
         <p class="text-muted">${escapeHtml(State.currentClassName || '—')}</p>
@@ -486,12 +487,71 @@ function showSettings() {
         <label>المستخدم</label>
         <p class="text-muted">${escapeHtml(Auth.user?.name || '—')}</p>
       </div>
+
       <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border-light)">
+      
+      <!-- ✅ قسم تغيير كلمة المرور -->
+      <h3 class="card-title" style="font-size: 16px; margin-bottom: 16px;">🔐 تغيير كلمة المرور</h3>
+      <div class="form-group">
+        <label>كلمة المرور الحالية</label>
+        <input type="password" id="settings-old-pass" placeholder="أدخل كلمة المرور الحالية">
+      </div>
+      <div class="form-group">
+        <label>كلمة المرور الجديدة</label>
+        <input type="password" id="settings-new-pass" placeholder="أدخل كلمة المرور الجديدة">
+      </div>
+      <div class="form-group">
+        <label>تأكيد كلمة المرور الجديدة</label>
+        <input type="password" id="settings-confirm-pass" placeholder="أعد إدخال كلمة المرور الجديدة">
+      </div>
+      <button class="btn btn-primary" id="btn-change-password">تحديث كلمة المرور</button>
+
+      <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border-light)">
+      
       <button class="btn btn-danger" onclick="handleLogout()">
         🚪 تسجيل الخروج
       </button>
     </div>
   `;
+
+  // ربط زر تغيير كلمة المرور
+  document.getElementById('btn-change-password').onclick = async () => {
+    const oldP = document.getElementById('settings-old-pass').value.trim();
+    const newP = document.getElementById('settings-new-pass').value.trim();
+    const confirmP = document.getElementById('settings-confirm-pass').value.trim();
+
+    if (!oldP || !newP || !confirmP) {
+      toast('أكمل جميع الحقول', 'warn');
+      return;
+    }
+    if (newP !== confirmP) {
+      toast('كلمة المرور الجديدة وتأكيدها غير متطابقين', 'error');
+      return;
+    }
+    if (newP.length < 4) {
+      toast('كلمة المرور الجديدة قصيرة (4 أحرف على الأقل)', 'warn');
+      return;
+    }
+
+    const btn = document.getElementById('btn-change-password');
+    btn.disabled = true;
+    btn.textContent = '⏳ جاري التحديث...';
+
+    try {
+      await Auth.changePassword(oldP, newP);
+      toast('✅ تم تغيير كلمة المرور بنجاح', 'success');
+      
+      // مسح الحقول
+      document.getElementById('settings-old-pass').value = '';
+      document.getElementById('settings-new-pass').value = '';
+      document.getElementById('settings-confirm-pass').value = '';
+    } catch (e) {
+      toast('فشل: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'تحديث كلمة المرور';
+    }
+  };
 }
 
 /* أداة مساعدة لعرض الأخطاء */
@@ -514,18 +574,16 @@ document.addEventListener('DOMContentLoaded', () => {
     toast('خطأ في بدء التطبيق: ' + e.message, 'error', 6000);
   });
 });
+
 /* ============================================================
    Class Switcher Menu
    ============================================================ */
 function openClassSwitcher() {
-  // إذا لم يكن هناك فصول، لا نفعل شيئاً
   if (!State.classes || State.classes.length === 0) return;
 
-  // إنشاء خلفية معتمة
   const overlay = document.createElement('div');
   overlay.className = 'class-switcher-overlay';
   
-  // بناء القائمة
   overlay.innerHTML = `
     <div class="class-switcher-menu">
       <div class="class-switcher-header">
@@ -550,14 +608,12 @@ function openClassSwitcher() {
 
   document.body.appendChild(overlay);
 
-  // إغلاق القائمة
   const closeMenu = () => overlay.remove();
   overlay.querySelector('#close-class-switcher').onclick = closeMenu;
   overlay.onclick = (e) => {
     if (e.target === overlay) closeMenu();
   };
 
-  // التبديل بين الفصول
   overlay.querySelectorAll('.class-switcher-item').forEach(item => {
     item.onclick = async () => {
       const classId = item.dataset.id;
@@ -566,16 +622,13 @@ function openClassSwitcher() {
         return;
       }
       
-      // إغلاق القائمة وإظهار مؤشر تحميل
       closeMenu();
       toast('⏳ جاري تبديل الفصل...', 'info', 1500);
 
-      // تغيير الفصل
       State.setCurrentClass(classId);
       sessionStorage.setItem('selected_class_id', classId);
       await State.loadStudents();
 
-      // إعادة تحميل الصفحة الحالية لتحديث البيانات
       if (App.currentRoute) {
         navigateTo(App.currentRoute, false);
       } else {
